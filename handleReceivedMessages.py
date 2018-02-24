@@ -19,121 +19,103 @@ BASE_URL = "https://api.telegram.org/bot{}".format(TOKEN)
 SIGN_UP_STRINGS = {"I only speak English.":'ask',"Ich spreche Deutsch und kann helfen!":'answer'}
 
 QUESTION_ASKED_ARN = "arn:aws:sns:us-east-1:528227264112:ask-the-potato-question-asked"
-
+TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
     try:
-        data = json.loads(event["body"])
-        message = str(data["message"]["text"])
-        chat_id = data["message"]["chat"]["id"]
-        first_name = data["message"]["chat"]["first_name"]
-        table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
-        timestamp = int(time.time() * 1000)
-            
-        # fetch chat_id from the database
-        result = table.get_item(Key={'id':int(chat_id)})
-        print(result)
+        telegramMessage = parseTelegramMessage(json.loads(event["body"]))
+        chat_id = telegramMessage['chat_id']
+        first_name = telegramMessage['first_name']
+        message = telegramMessage['message']
+        user = getUserFromDb(chat_id)
         
-        # if no Item in table, respond with sign-up message
-        if not 'Item' in result:
-            
-            # create user if response matches sign up strings
+        if user == {}:
             if message in SIGN_UP_STRINGS:
-                
-                item = {
-                    'id': int(chat_id),
-                    'updated_at': timestamp,
-                    'job':SIGN_UP_STRINGS[message],
-                    'created_at': timestamp,
-                    }
-                table.put_item(Item=item)
-                
-                response = "You have signed up to %s questions." % (SIGN_UP_STRINGS[message])
-                
-                if SIGN_UP_STRINGS[message] == 'answer':
-                    dynamoQueue = table.get_item(Key={'id':0})
-                    if not 'queue' in dynamoQueue['Item']:
-                        queue = []
-                    else:
-                        queue = dynamoQueue['Item']['queue']
-                        
-                    queue.append(int(chat_id))
-                    dynamoResponse = table.update_item(
-                    Key={
-                        'id': 0
-                    },
-                    UpdateExpression="set queue = :q",
-                    ExpressionAttributeValues={
-                        ':q': queue
-                    },
-                    ReturnValues="UPDATED_NEW"
-                    )
-                
-                telegramData = {"text": response.encode("utf8"), "chat_id": chat_id}
-                
-                url = BASE_URL + "/sendMessage"
-                r = requests.post(url, telegramData)
-                
-                return {"statusCode": 200}
-            
-            response = "Hi!\nI haven't seen you before. Are you looking for help or do you want to help?"
-            
-            keyboard = []
-            for message in SIGN_UP_STRINGS:
-                keyboard.append([{"text":message}])
-            
-            reply_markup = {"keyboard":keyboard,"one_time_keyboard":True}
-            
-            telegramData = {"text": response.encode("utf8"), "chat_id": chat_id, "reply_markup": json.dumps(reply_markup)}
-        #process message when user is already signed up
+                job = SIGN_UP_STRINGS['message']
+                addUserToDb(chat_id,job)
+                if job == 'answer':
+                    addAnswererToQueue(chat_id)
+                signUpMessage = "You have signed up to %s questions." % (job)
+                sendTelegramMessage(signUpMessage,chat_id)
+            else:
+                sendSignUpMessage(chat_id)
+            return {"statusCode": 200}
+
+            #process message when user is already signed up
+        if user['job'] == 'ask':
+            question = "%s asks: %s" % (first_name,message)         
+            publishQuestionToSns(chat_id,question)
+            response = "I've sent your question to a few people speaking German. Wait a bit until they answer"
+            sendTelegramMessage(response,chat_id)
+        elif user['job'] == 'answer':
+            response = "I can't handle answers yet..."
+            sendTelegramMessage(response,chat_id)
         else:
-            if result['Item']['job'] == 'ask':
-                #Add open question to chat_id in DB
-                if not 'questions' in result['Item']:
-                    questions = []
-                else:
-                    questions = result['Item']['questions']
-                
-                question = "%s asks: %s" % (first_name,message)
-                questions.append({'question':question})
-                
-                dynamoResponse = table.update_item(
-                    Key={
-                        'id': int(chat_id)
-                    },
-                    UpdateExpression="set questions = :q, updated_at = :u",
-                    ExpressionAttributeValues={
-                        ':q': questions,
-                        ':u': timestamp
-                    },
-                    ReturnValues="UPDATED_NEW"
-                    )
-                print(dynamoResponse)
-                
-                snsMessage = json.dumps({'question':question,'chat_id':chat_id})
-                
-                snsResponse = sns.publish(TopicArn=QUESTION_ASKED_ARN, Message=snsMessage)
-                
-                telegramResponse = "I've sent your question to a few people speaking German. Wait a bit until they answer"
-                
-                telegramData = {"text": telegramResponse.encode("utf8"), "chat_id": chat_id}
-
-            elif result['Item']['job'] == 'answer':
-                pass
-                #check if reply_to_message is in message object, if no educate user
-                # if yes, get original chat id from db and forward message, return success to sender
-                telegramResponse = "I can't handle answers yet..."
-                telegramData = {"text": telegramResponse.encode("utf8"), "chat_id": chat_id}
-            
-            
-
-        
-        url = BASE_URL + "/sendMessage"
-        r = requests.post(url, telegramData)
-        print(r.text)
-
+            sendSignUpMessage(chat_id)
+        return {"statusCode": 200}
     except Exception as e:
         print(e)
         traceback.print_exc()
 
-    return {"statusCode": 200}
+def parseTelegramMessage(body):
+    message = str(body["message"]["text"])
+    chat_id = body["message"]["chat"]["id"]
+    first_name = body["message"]["chat"]["first_name"]
+
+    return({
+        'message':message,
+        'chat_id':chat_id,
+        'first_name':first_name}
+        )
+
+def getUserFromDb(chat_id):
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    request = table.get_item(Key={'id':int(chat_id)})
+    if not 'Item' in request:
+        return {}
+    return request['Item']
+
+def addUserToDb(chat_id,job):
+    user = {
+    'id': int(chat_id),
+    'updated_at': TIMESTAMP,
+    'job':job,
+    'created_at': TIMESTAMP,
+    'answers': [],
+    }
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    table.put_item(Item=user)
+
+def addAnswererToQueue(chat_id):
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    dynamoQueue = table.get_item(Key={'id':0})
+    if not 'queue' in dynamoQueue['Item']:
+        raise Exception("Couldn't find queue in payload!")
+    queue = dynamoQueue['Item']['queue']
+    queue.append(int(chat_id))
+    table.update_item(
+        Key={'id': 0},
+        UpdateExpression="set queue = :q",
+        ExpressionAttributeValues={':q': queue},
+        ReturnValues="UPDATED_NEW"
+    )
+
+def sendTelegramMessage(text,chat_id):
+    payload = {"text": str(text).encode("utf8"), "chat_id": chat_id}
+    url = BASE_URL + "/sendMessage"
+    requests.post(url, payload)
+
+def sendSignUpMessage(chat_id):
+    text = "Hi!\nI haven't seen you before. Are you looking for help or do you want to help?"      
+    keyboard = []
+    for message in SIGN_UP_STRINGS:
+        keyboard.append([{"text":message}])
+    reply_markup = {"keyboard":keyboard,"one_time_keyboard":True}
+    payload = {"text": text.encode("utf8"), "chat_id": chat_id, "reply_markup": json.dumps(reply_markup)}
+    url = BASE_URL + "/sendMessage"
+    requests.post(url, payload)
+
+def publishQuestionToSns(chat_id,question):
+    message = json.dumps({'question':question,'chat_id':chat_id})
+    sns.publish(TopicArn=QUESTION_ASKED_ARN, Message=message)
+            
