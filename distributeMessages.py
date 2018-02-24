@@ -19,7 +19,6 @@ def main(event, context):
     try:
         print('event:')
         print(event)
-        table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
         
         records = event["Records"]
         queue = []
@@ -119,10 +118,12 @@ def updateQueueOnDynamo(queue):
     
 def getChatIdsfromQueue(amount,queue):
     chat_ids = []
-    for i in range(amount):
+    i = 0
+    while i < amount:
         chat_id = queue.pop(0)
         chat_ids.append(chat_id)
         queue.append(chat_id)
+        i+=1
     return queue,chat_ids
     
 
