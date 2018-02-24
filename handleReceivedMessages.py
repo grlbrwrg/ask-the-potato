@@ -114,8 +114,9 @@ def addAnswererToQueue(chat_id):
     )
 
 def sendTelegramMessage(text,chat_id):
-    payload = {"text": str(text).encode("utf8"), "chat_id": chat_id}
-    url = BASE_URL + "/sendMessage"
+    reply_markup = {'hide_keyboard':True}
+    payload = {"text": str(text).encode("utf8"), "chat_id": chat_id, "reply_markup": json.dumps(reply_markup)}
+    url = BASE_URL + "/sendMessage"    
     requests.post(url, payload)
 
 def sendSignUpMessage(chat_id):
