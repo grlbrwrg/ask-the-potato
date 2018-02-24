@@ -7,7 +7,6 @@ here = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(here, "./vendored"))
 
 import requests
-
 import boto3
 from boto3.dynamodb.conditions import Key
 dynamodb = boto3.resource('dynamodb')
@@ -55,7 +54,7 @@ def main(event, context):
                     if conversation['question'] == telegramMessage['reply_to_message_text']:
                         answerText = "%s answered: %s" % (first_name,message)
                         sendTelegramMessage(answerText,conversation['asker'])
-                        conversation['answers'].append({'answer':message})
+                        conversation['answer'] = message
                         updateConversations(chat_id,user['conversations'])
                         return {"statusCode": 200}
                     

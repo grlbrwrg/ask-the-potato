@@ -58,7 +58,7 @@ def addOpenAnswerToAnswerer(answerer_chat_id,asker_chat_id,question):
     table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
     answerer = table.get_item(Key={'id':int(answerer_chat_id)})
     timestamp = int(time.time() * 1000)
-    openAnswer = {'asker':int(asker_chat_id),'question':question,'answers':[]}
+    openAnswer = {'asker':int(asker_chat_id),'question':question}
     if not 'conversations' in answerer['Item']:
         conversations = [openAnswer]
     else:
