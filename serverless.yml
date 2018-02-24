@@ -1,0 +1,38 @@
+service: AskThePotato
+
+provider:
+  name: aws
+  runtime: python3.6
+  stage: dev
+  region: us-east-1
+  environment:
+    TELEGRAM_TOKEN: "509785164:AAF1MQSLMa1RMFJyFnFwbCc_4od26ZUGYOs"
+    DYNAMODB_TABLE: "ask-the-potato-db"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: "arn:aws:sns:us-east-1:528227264112:ask-the-potato-question-asked"
+
+
+functions:
+  handleReceivedMessages:
+    handler: handleReceivedMessages.main
+    events:
+      - http:
+          path: telegram-webhook
+          method: post
+          cors: true
+  distributeMessages:
+    handler: distributeMessages.main
+    events:
+      - sns: "ask-the-potato-question-asked"
