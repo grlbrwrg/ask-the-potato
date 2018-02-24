@@ -23,6 +23,7 @@ TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
     try:
+        print(event)
         telegramMessage = parseTelegramMessage(json.loads(event["body"]))
         chat_id = telegramMessage['chat_id']
         first_name = telegramMessage['first_name']
@@ -31,7 +32,7 @@ def main(event, context):
         
         if user == {}:
             if message in SIGN_UP_STRINGS:
-                job = SIGN_UP_STRINGS['message']
+                job = SIGN_UP_STRINGS[message]
                 addUserToDb(chat_id,job)
                 if job == 'answer':
                     addAnswererToQueue(chat_id)
@@ -40,16 +41,24 @@ def main(event, context):
             else:
                 sendSignUpMessage(chat_id)
             return {"statusCode": 200}
-
-            #process message when user is already signed up
-        if user['job'] == 'ask':
+        elif user['job'] == 'ask':
             question = "%s asks: %s" % (first_name,message)         
             publishQuestionToSns(chat_id,question)
             response = "I've sent your question to a few people speaking German. Wait a bit until they answer"
             sendTelegramMessage(response,chat_id)
         elif user['job'] == 'answer':
-            response = "I can't handle answers yet..."
-            sendTelegramMessage(response,chat_id)
+            if telegramMessage['reply_to_message_text'] == "":
+                response = "To answer a question, tap it and select 'Reply'."
+                sendTelegramMessage(response,chat_id)
+            else:
+                for conversation in user['conversations']:
+                    if conversation['question'] == telegramMessage['reply_to_message_text']:
+                        answerText = "%s answered: %s" % (first_name,message)
+                        sendTelegramMessage(answerText,conversation['asker'])
+                        conversation['answers'].append({'answer':message})
+                        updateConversations(chat_id,user['conversations'])
+                        return {"statusCode": 200}
+                    
         else:
             sendSignUpMessage(chat_id)
         return {"statusCode": 200}
@@ -61,11 +70,16 @@ def parseTelegramMessage(body):
     message = str(body["message"]["text"])
     chat_id = body["message"]["chat"]["id"]
     first_name = body["message"]["chat"]["first_name"]
+    if 'reply_to_message' in body["message"]:
+        reply_to_message_text = body['message']['reply_to_message']['text']
+    else:
+        reply_to_message_text = ""
 
     return({
-        'message':message,
-        'chat_id':chat_id,
-        'first_name':first_name}
+        'message': message,
+        'chat_id': chat_id,
+        'first_name': first_name,
+        'reply_to_message_text': reply_to_message_text}
         )
 
 def getUserFromDb(chat_id):
@@ -81,7 +95,7 @@ def addUserToDb(chat_id,job):
     'updated_at': TIMESTAMP,
     'job':job,
     'created_at': TIMESTAMP,
-    'answers': [],
+    'conversations': [],
     }
     table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
     table.put_item(Item=user)
@@ -118,4 +132,17 @@ def sendSignUpMessage(chat_id):
 def publishQuestionToSns(chat_id,question):
     message = json.dumps({'question':question,'chat_id':chat_id})
     sns.publish(TopicArn=QUESTION_ASKED_ARN, Message=message)
-            
+
+def updateConversations(chat_id,conversations):
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    table.update_item(
+        Key={
+            'id': int(chat_id)
+        },
+        UpdateExpression="set conversations = :c, updated_at = :u",
+        ExpressionAttributeValues={
+            ':c': conversations,
+            ':u': TIMESTAMP
+        },
+        ReturnValues="UPDATED_NEW"
+    )
