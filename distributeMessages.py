@@ -58,21 +58,20 @@ def addOpenAnswerToAnswerer(answerer_chat_id,asker_chat_id,question):
     table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
     answerer = table.get_item(Key={'id':int(answerer_chat_id)})
     timestamp = int(time.time() * 1000)
-    
-    openAnswer = {'asker':int(asker_chat_id),'question':question}
-    answers = []
-    if not 'answers' in answerer['Item']:
-        answers = [openAnswer]
+    openAnswer = {'asker':int(asker_chat_id),'question':question,'answers':[]}
+    if not 'conversations' in answerer['Item']:
+        conversations = [openAnswer]
     else:
-        answers.append(openAnswer)
+        conversations = answerer['Item']['conversations']
+    conversations.append(openAnswer)
     
     dynamoUpdate = table.update_item(
     Key={
         'id': int(answerer_chat_id)
     },
-    UpdateExpression="set answers = :a, updated_at = :u",
+    UpdateExpression="set conversations = :c, updated_at = :u",
     ExpressionAttributeValues={
-        ':a': answers,
+        ':c': conversations,
         ':u': timestamp
     },
     ReturnValues="UPDATED_NEW"
