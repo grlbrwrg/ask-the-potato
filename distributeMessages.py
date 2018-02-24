@@ -17,21 +17,13 @@ BASE_URL = "https://api.telegram.org/bot{}".format(TOKEN)
 
 def main(event, context):
     try:
-        print('event:')
-        print(event)
-        
         records = event["Records"]
         queue = []
         for record in records:
-            # get all questions from the event record
             if 'Sns' in record:
                 message = json.loads(record['Sns']['Message'])
                 asker_chat_id = message['chat_id']
                 question = message['question']
-            
-            # check if there are any questions that haven't been sent to anybody
-            print(asker_chat_id)
-            print(question)
             if queue == []:
                 queue = getQueueFromDynamo()
             queue,answerer_chat_ids = getChatIdsfromQueue(1,queue)
