@@ -4,7 +4,7 @@ from handleReceivedMessages import parseTelegramMessage
 from distributeMessages import getChatIdsfromQueue
 def test_parseTelegramMessage():
     body = {'message':{'text':'Test','chat':{'id':1,'first_name':'Testbert'},'reply_to_message':{'text':'ReplyToTest'}}}
-    result = {'message':'Test','chat_id':1,'first_name':'Testbert','reply_to_message_text':'ReplyToTest'}
+    result = {'isTextMessage':True,'message':'Test','chat_id':1,'first_name':'Testbert','reply_to_message_text':'ReplyToTest'}
     assert parseTelegramMessage(body) == result
 
 def test_getChatIdsfromQueue():

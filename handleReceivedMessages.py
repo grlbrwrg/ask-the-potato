@@ -25,6 +25,9 @@ def main(event, context):
         print(event)
         telegramMessage = parseTelegramMessage(json.loads(event["body"]))
         chat_id = telegramMessage['chat_id']
+        if not telegramMessage['isTextMessage']:
+            sendTelegramMessage("Sorry, I can only handle text messages for now :(",chat_id)
+            return {"statusCode": 200}
         first_name = telegramMessage['first_name']
         message = telegramMessage['message']
         user = getUserFromDb(chat_id)
@@ -66,15 +69,18 @@ def main(event, context):
         traceback.print_exc()
 
 def parseTelegramMessage(body):
-    message = str(body["message"]["text"])
+    isTextMessage = False
+    message = ""
+    if "text" in body["message"]:
+        isTextMessage = True
+        message = str(body["message"]["text"])
     chat_id = body["message"]["chat"]["id"]
     first_name = body["message"]["chat"]["first_name"]
+    reply_to_message_text = ""
     if 'reply_to_message' in body["message"]:
         reply_to_message_text = body['message']['reply_to_message']['text']
-    else:
-        reply_to_message_text = ""
-
     return({
+        'isTextMessage' : isTextMessage,
         'message': message,
         'chat_id': chat_id,
         'first_name': first_name,
