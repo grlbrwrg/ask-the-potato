@@ -13,11 +13,12 @@ dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
 TOKEN = os.environ['TELEGRAM_TOKEN']
+QUESTION_ASKED_ARN = os.environ['SNS_QUESTION_ASKED_ARN']
+
 BASE_URL = "https://api.telegram.org/bot{}".format(TOKEN)
 
 SIGN_UP_STRINGS = {"I only speak English.":'ask',"Ich spreche Deutsch und kann helfen!":'answer'}
 
-QUESTION_ASKED_ARN = "arn:aws:sns:us-east-1:528227264112:ask-the-potato-question-asked"
 TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
@@ -45,7 +46,7 @@ def main(event, context):
             return {"statusCode": 200}
         elif user['job'] == 'ask':
             question = "%s asks: %s" % (first_name,message)         
-            publishQuestionToSns(chat_id,question)
+            publishQuestionToSns(chat_id,question,QUESTION_ASKED_ARN)
             response = "I've sent your question to a few people speaking German. Wait a bit until they answer"
             sendTelegramMessage(response,chat_id)
         elif user['job'] == 'answer':
@@ -135,9 +136,10 @@ def sendSignUpMessage(chat_id):
     url = BASE_URL + "/sendMessage"
     requests.post(url, payload)
 
-def publishQuestionToSns(chat_id,question):
+def publishQuestionToSns(chat_id,question,arn):
     message = json.dumps({'question':question,'chat_id':chat_id})
-    sns.publish(TopicArn=QUESTION_ASKED_ARN, Message=message)
+    response = sns.publish(TopicArn=arn, Message=message)
+    return response
 
 def updateConversations(chat_id,conversations):
     table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
