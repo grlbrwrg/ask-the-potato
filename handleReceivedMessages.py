@@ -18,7 +18,7 @@ QUESTION_ASKED_ARN = os.environ['SNS_QUESTION_ASKED_ARN']
 BASE_URL = "https://api.telegram.org/bot{}".format(TOKEN)
 
 SIGN_UP_STRINGS = {"I only speak English.":'ask',"Ich spreche Deutsch und kann helfen!":'answer'}
-
+RATING_SYMBOLS = {"grin":u'\U0001F600',"boom":u'\U0001F92F'}
 TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
@@ -57,7 +57,7 @@ def main(event, context):
                 for conversation in user['conversations']:
                     if conversation['question'] == telegramMessage['reply_to_message_text']:
                         answerText = "%s answered: %s" % (first_name,message)
-                        sendTelegramMessage(answerText,conversation['asker'])
+                        sendTelegramMessageWithRating(answerText,conversation['asker'])
                         conversation['answer'] = message
                         updateConversations(chat_id,user['conversations'])
                         return {"statusCode": 200}
@@ -125,6 +125,15 @@ def sendTelegramMessage(text,chat_id):
     payload = {"text": str(text).encode("utf8"), "chat_id": chat_id, "reply_markup": json.dumps(reply_markup)}
     url = BASE_URL + "/sendMessage"    
     requests.post(url, payload)
+
+def sendTelegramMessageWithRating(text,chat_id):
+    inline_keyboard = [[]]
+    for rating in RATING_SYMBOLS:
+        inline_keyboard[0].append({'text':RATING_SYMBOLS[rating],'callback_data':rating})
+    print(inline_keyboard)
+    payload = {"text": str(text).encode("utf8"), "chat_id": chat_id, "reply_markup":json.dumps({"inline_keyboard":inline_keyboard})}
+    url = BASE_URL + "/sendMessage"    
+    response = requests.post(url, payload)
 
 def sendSignUpMessage(chat_id):
     text = "Hi!\nI haven't seen you before. Are you looking for help or do you want to help?"      
