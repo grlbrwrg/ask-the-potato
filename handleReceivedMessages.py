@@ -23,24 +23,16 @@ TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
     try:
-        print(event)
-        if "callback_query" in json.loads(event["body"]):
-            callback_query = json.loads(event["body"])
-            payload = {
-                "text": str("Rating received!").encode("utf8"),
-                "callback_query_id": callback_query["callback_query"]["id"]}
-            url = BASE_URL + "/answerCallbackQuery"
-            requests.post(url, payload)
-
-            payload = {
-                "chat_id": callback_query["callback_query"]["message"]["chat"]["id"],
-                "message_id": callback_query["callback_query"]["message"]["message_id"], 
-                "reply_markup":json.dumps({"inline_keyboard":[[]]})}
-            url = BASE_URL + "/editMessageReplyMarkup"
-            response = requests.post(url, payload)
-            print(response.content)
+        eventBody = json.loads(event["body"])
+        if "callback_query" in eventBody:
+            callback_query_id = eventBody["callback_query"]["id"]
+            answerTelegramCallbackQuery(callback_query_id)
+            
+            chat_id = eventBody["callback_query"]["message"]["chat"]["id"],
+            message_id = eventBody["callback_query"]["message"]["message_id"], 
+            removeInlineKeyboard(chat_id,message_id)
             return {"statusCode": 200}
-        telegramMessage = parseTelegramMessage(json.loads(event["body"]))
+        telegramMessage = parseTelegramMessage(eventBody)
         chat_id = telegramMessage['chat_id']
         if not telegramMessage['isTextMessage']:
             sendTelegramMessage("Sorry, I can only handle text messages for now :(",chat_id)
@@ -179,3 +171,19 @@ def updateConversations(chat_id,conversations):
         },
         ReturnValues="UPDATED_NEW"
     )
+
+def answerTelegramCallbackQuery(callback_query_id):
+    payload = {
+        "text": str(u'\U0001F592').encode("utf8"),
+        "callback_query_id": callback_query_id}
+    url = BASE_URL + "/answerCallbackQuery"
+    requests.post(url, payload)
+
+def removeInlineKeyboard(chat_id,message_id):
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "reply_markup":json.dumps({"inline_keyboard":[[]]})}
+    url = BASE_URL + "/editMessageReplyMarkup"
+    requests.post(url, payload)
+
