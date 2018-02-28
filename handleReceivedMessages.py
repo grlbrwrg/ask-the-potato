@@ -24,6 +24,22 @@ TIMESTAMP = int(time.time() * 1000)
 def main(event, context):
     try:
         print(event)
+        if "callback_query" in json.loads(event["body"]):
+            callback_query = json.loads(event["body"])
+            payload = {
+                "text": str("Rating received!").encode("utf8"),
+                "callback_query_id": callback_query["callback_query"]["id"]}
+            url = BASE_URL + "/answerCallbackQuery"
+            requests.post(url, payload)
+
+            payload = {
+                "chat_id": callback_query["callback_query"]["message"]["chat"]["id"],
+                "message_id": callback_query["callback_query"]["message"]["message_id"], 
+                "reply_markup":json.dumps({"inline_keyboard":[[]]})}
+            url = BASE_URL + "/editMessageReplyMarkup"
+            response = requests.post(url, payload)
+            print(response.content)
+            return {"statusCode": 200}
         telegramMessage = parseTelegramMessage(json.loads(event["body"]))
         chat_id = telegramMessage['chat_id']
         if not telegramMessage['isTextMessage']:
@@ -133,7 +149,7 @@ def sendTelegramMessageWithRating(text,chat_id):
     print(inline_keyboard)
     payload = {"text": str(text).encode("utf8"), "chat_id": chat_id, "reply_markup":json.dumps({"inline_keyboard":inline_keyboard})}
     url = BASE_URL + "/sendMessage"    
-    response = requests.post(url, payload)
+    requests.post(url, payload)
 
 def sendSignUpMessage(chat_id):
     text = "Hi!\nI haven't seen you before. Are you looking for help or do you want to help?"      
