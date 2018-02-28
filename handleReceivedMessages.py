@@ -27,7 +27,7 @@ def main(event, context):
         if "callback_query" in eventBody:
             callback_query_id = eventBody["callback_query"]["id"]
             answerTelegramCallbackQuery(callback_query_id)
-            
+
             chat_id = eventBody["callback_query"]["message"]["chat"]["id"],
             message_id = eventBody["callback_query"]["message"]["message_id"], 
             removeInlineKeyboard(chat_id,message_id)
@@ -174,7 +174,6 @@ def updateConversations(chat_id,conversations):
 
 def answerTelegramCallbackQuery(callback_query_id):
     payload = {
-        "text": str(u'\U0001F592').encode("utf8"),
         "callback_query_id": callback_query_id}
     url = BASE_URL + "/answerCallbackQuery"
     requests.post(url, payload)
