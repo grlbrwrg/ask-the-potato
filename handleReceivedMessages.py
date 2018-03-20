@@ -25,12 +25,17 @@ def main(event, context):
     try:
         eventBody = json.loads(event["body"])
         if "callback_query" in eventBody:
+            print(eventBody)
             callback_query_id = eventBody["callback_query"]["id"]
             answerTelegramCallbackQuery(callback_query_id)
 
-            chat_id = eventBody["callback_query"]["message"]["chat"]["id"],
-            message_id = eventBody["callback_query"]["message"]["message_id"], 
+            chat_id = eventBody["callback_query"]["message"]["chat"]["id"]
+            message_id = eventBody["callback_query"]["message"]["message_id"] 
             removeInlineKeyboard(chat_id,message_id)
+
+            message_text = eventBody["callback_query"]["message"]["text"]
+            rating = eventBody["callback_query"]["data"]
+            updateRatingOfAskerAndSendMessageToAnswerer(message_text,rating,chat_id)
             return {"statusCode": 200}
         telegramMessage = parseTelegramMessage(eventBody)
         chat_id = telegramMessage['chat_id']
@@ -68,7 +73,12 @@ def main(event, context):
                         sendTelegramMessageWithRating(answerText,conversation['asker'])
                         conversation['answer'] = message
                         updateConversations(chat_id,user['conversations'])
+                        addEmptyRatingToAsker(answerText,chat_id,conversation['asker'])
+                        sendTelegramMessage("Antwort wurde weitergeleitet!",chat_id)
                         return {"statusCode": 200}
+                response = "Sorry, I couldn't find the question you answered."
+                sendTelegramMessage(response,chat_id)
+            return {"statusCode": 200}
                     
         else:
             sendSignUpMessage(chat_id)
@@ -76,6 +86,57 @@ def main(event, context):
     except Exception as e:
         print(e)
         traceback.print_exc()
+
+def addEmptyRatingToAsker(answerText,answererChatId,askerChatId):
+    asker = getUserFromDb(askerChatId)
+    if "ratings" not in asker:
+        ratings = {}
+    else:
+        ratings = asker["ratings"]
+    ratings[answerText] = {"answerer":answererChatId}
+    #TODO: Extract updating a user
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    response = table.update_item(
+        Key={
+            'id': int(askerChatId)
+        },
+        UpdateExpression="set ratings = :r, updated_at = :u",
+        ExpressionAttributeValues={
+            ':r': ratings,
+            ':u': TIMESTAMP
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+    return response
+
+def updateRatingOfAskerAndSendMessageToAnswerer(answerText,rating,askerChatId):
+    asker = getUserFromDb(askerChatId)
+    if "ratings" not in asker:
+        raise Exception("Asker rated answer but didn't have rating object!")
+    else:
+        ratings = asker["ratings"]
+    answererChatId = ratings[answerText]["answerer"]
+    ratings[answerText] = {"answerer":answererChatId,"rating":rating}
+
+    #TODO: Extract notifying answerer for stats tracking
+    message = "You got a %s for your answer!" % (RATING_SYMBOLS[rating])
+    sendTelegramMessage(message,answererChatId)
+
+    #TODO: Extract updating a user
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    response = table.update_item(
+        Key={
+            'id': int(askerChatId)
+        },
+        UpdateExpression="set ratings = :r, updated_at = :u",
+        ExpressionAttributeValues={
+            ':r': ratings,
+            ':u': TIMESTAMP
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+    return response    
+
 
 def parseTelegramMessage(body):
     isTextMessage = False
@@ -174,6 +235,7 @@ def updateConversations(chat_id,conversations):
 
 def answerTelegramCallbackQuery(callback_query_id):
     payload = {
+        "text":"Rating received!",
         "callback_query_id": callback_query_id}
     url = BASE_URL + "/answerCallbackQuery"
     requests.post(url, payload)
