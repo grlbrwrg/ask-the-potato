@@ -46,13 +46,19 @@ def main(event, context):
         message = telegramMessage['message']
         user = getUserFromDb(chat_id)
         
-        if user == {}:
+        if message[:8].upper() == "FEEDBACK":
+            feedback = "%s (%s) gave feedback: %s" % (first_name,chat_id,message)
+            sendTelegramMessage(feedback,"282364504")
+            sendTelegramMessage("Thanks for your feedback!",chat_id)
+        elif user == {}:
             if message in SIGN_UP_STRINGS:
                 job = SIGN_UP_STRINGS[message]
                 addUserToDb(chat_id,job)
                 if job == 'answer':
                     addAnswererToQueue(chat_id)
-                signUpMessage = "You have signed up to %s questions." % (job)
+                    signUpMessage = "Du beantwortest jetzt Fragen."
+                else:
+                    signUpMessage = "You have signed up to ask questions."
                 sendTelegramMessage(signUpMessage,chat_id)
             else:
                 sendSignUpMessage(chat_id)
