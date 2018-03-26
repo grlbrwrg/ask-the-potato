@@ -17,8 +17,8 @@ QUESTION_ASKED_ARN = os.environ['SNS_QUESTION_ASKED_ARN']
 
 BASE_URL = "https://api.telegram.org/bot{}".format(TOKEN)
 
-SIGN_UP_STRINGS = {"I only speak English.":'ask',"Ich spreche Deutsch und kann helfen!":'answer'}
-RATING_SYMBOLS = {"grin":u'\U0001F600',"boom":u'\U0001F92F'}
+SIGN_UP_STRINGS = {"ASK - I speak english!.":'ask',"ANTWORTEN - Ich spreche Deutsch!":'answer'}
+RATING_SYMBOLS = {"grin":u'\U0001F600',"boom":u'\U0001F92F',"laugh":u'\U0001F602',"cry":u'\U0001F622',"celebrate":u'\U0001F64C',"beer":u'\U0001F37A'}
 TIMESTAMP = int(time.time() * 1000)
 
 def main(event, context):
@@ -64,7 +64,7 @@ def main(event, context):
             sendTelegramMessage(response,chat_id)
         elif user['job'] == 'answer':
             if telegramMessage['reply_to_message_text'] == "":
-                response = "To answer a question, tap it and select 'Reply'."
+                response = "Um zu antworten, tappe auf die Nachricht und wähle 'Antworten'."
                 sendTelegramMessage(response,chat_id)
             else:
                 for conversation in user['conversations']:
@@ -76,7 +76,7 @@ def main(event, context):
                         addEmptyRatingToAsker(answerText,chat_id,conversation['asker'])
                         sendTelegramMessage("Antwort wurde weitergeleitet!",chat_id)
                         return {"statusCode": 200}
-                response = "Sorry, I couldn't find the question you answered."
+                response = "Sorry, ich konnte die Frage auf deine Antwort nicht finden :(."
                 sendTelegramMessage(response,chat_id)
             return {"statusCode": 200}
                     
@@ -119,7 +119,7 @@ def updateRatingOfAskerAndSendMessageToAnswerer(answerText,rating,askerChatId):
     ratings[answerText] = {"answerer":answererChatId,"rating":rating}
 
     #TODO: Extract notifying answerer for stats tracking
-    message = "You got a %s for your answer!" % (RATING_SYMBOLS[rating])
+    message = "Du hast ein %s für deine Antwort bekommen!" % (RATING_SYMBOLS[rating])
     sendTelegramMessage(message,answererChatId)
 
     #TODO: Extract updating a user
@@ -205,7 +205,7 @@ def sendTelegramMessageWithRating(text,chat_id):
     requests.post(url, payload)
 
 def sendSignUpMessage(chat_id):
-    text = "Hi!\nI haven't seen you before. Are you looking for help or do you want to help?"      
+    text = "Hi!\nI haven't seen you before. Check out https://git.io/vxEeb for more information. What do you want to do?"      
     keyboard = []
     for message in SIGN_UP_STRINGS:
         keyboard.append([{"text":message}])

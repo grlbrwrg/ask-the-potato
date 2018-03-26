@@ -6,7 +6,7 @@ provider:
   stage: dev
   region: us-east-1
   environment:
-    TELEGRAM_TOKEN: "509785164:AAF1MQSLMa1RMFJyFnFwbCc_4od26ZUGYOs"
+    TELEGRAM_TOKEN: ${ssm:ask-the-potato-telegram-key}
     DYNAMODB_TABLE: "ask-the-potato-db"
     SNS_QUESTION_ASKED_ARN: "arn:aws:sns:us-east-1:528227264112:ask-the-potato-question-asked"
 
